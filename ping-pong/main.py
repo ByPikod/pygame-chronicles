@@ -84,11 +84,12 @@ class Ball(Entity):
 class Player(Entity):
 
     def __init__(self, controller: dict):
-
         self.surf = pygame.Surface((20, 120))
-        self.surf.fill((0, 0, 0))
-
         super().__init__(self.surf.get_rect())
+
+        self.image = pygame.image.load("side.png").convert_alpha()
+        self.image = pygame.transform.smoothscale(self.image, self.rect.size)
+        self.surf.blit(self.image, (0, 0))
 
         self.controller: dict = controller
         self.speed: float = 0.5
