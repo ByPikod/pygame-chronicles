@@ -29,8 +29,10 @@ class Entity(pygame.sprite.Sprite):
 
 
 class Ball(Entity):
-    direction = -90
+    direction = 180
     speed = 0.2
+    collision_cooldown = 0
+    border_cooldown = 0
 
     def __init__(self, screen_width: int, screen_height: int):
 
@@ -49,12 +51,34 @@ class Ball(Entity):
         self.image = pygame.transform.smoothscale(self.image, self.rect.size)
         self.surf.blit(self.image, (0, 0))
 
-    def handle_movement(self, delta_time, collision_group: list[Entity]):
+    def handle_movement(self, delta_time, ticks, collision_group: list[Entity]):
 
+        # Score counter
+        if self.location[0] < 0:
+            return 1
+        elif self.location[0] + self.get_width() > self.screen_width:
+            return 2
+
+        # Top and bottom borders
+        if self.location[1] < 50 and self.border_cooldown < ticks:
+            self.direction *= -1
+            self.border_cooldown = ticks + 150
+        elif self.location[1] + self.get_height() > self.screen_height and self.border_cooldown < ticks:
+            self.direction *= -1
+            self.border_cooldown = ticks + 150
+
+        # Player collisions
         collision = self.check_collision(collision_group)
-        if collision:
+        if collision and self.collision_cooldown < ticks:
+            self.speed += 0.01
+            self.collision_cooldown = ticks + 300
+            rotateBall = (collision.get_y() - self.get_y()) / 2
+            if self.get_y() > self.screen_width / 2:
+                rotateBall *= -1
+            self.direction = (self.direction + rotateBall) * -1
             return
 
+        # Movement
         directionRadian = math.radians(self.direction)
         self.location = (
             self.location[0] + math.sin(directionRadian) * self.speed * delta_time,
@@ -71,10 +95,10 @@ class Ball(Entity):
         for sprite in collision_group:
 
             if (
-                sprite.get_x() < self.get_x() + self.get_width() and
-                sprite.get_x() + sprite.get_width() > self.get_x() and
-                sprite.get_y() < self.get_y() + self.get_height() and
-                sprite.get_y() + sprite.get_height() > self.get_y()
+                    sprite.get_x() < self.get_x() + self.get_width() and
+                    sprite.get_x() + sprite.get_width() > self.get_x() and
+                    sprite.get_y() < self.get_y() + self.get_height() and
+                    sprite.get_y() + sprite.get_height() > self.get_y()
             ):
                 return sprite
 
@@ -92,6 +116,7 @@ class Player(Entity):
         self.surf.blit(self.image, (0, 0))
 
         self.controller: dict = controller
+        self.score: int = 0
         self.speed: float = 0.5
         self.axis: float = 0.0
 
@@ -183,20 +208,34 @@ class Game:
             fps_text_rect = fps_text.get_rect()
             fps_text_rect.topleft = (10, 10)
 
+            score_text = self.mainFont.render(f"Score: {self.ply1.score} - {self.ply2.score}", True, (255, 255, 255))
+            score_text_rect = score_text.get_rect()
+            score_text_rect.topleft = (self.screen_width() - 120, 10)
+
             keys = pygame.key.get_pressed()
 
             height = self.screen_height()
             delta_time = self.get_delta_time()
+            ticks = self.get_ticks()
 
             self.ply1.handle_movement(keys, delta_time, height)
             self.ply2.handle_movement(keys, delta_time, height)
-            self.ball.handle_movement(delta_time, (self.ply1, self.ply2))
+            winner = self.ball.handle_movement(delta_time, ticks, (self.ply1, self.ply2))
+            if type(winner) == int:
+                self.ball.remove()
+                self.ball = Ball(self.screen_width(), self.screen_height())
+
+                if winner == 1:
+                    self.ply2.score += 1
+                else:
+                    self.ply1.score += 1
 
             self.display_surface.blit(self.header, self.header.get_rect())
             self.display_surface.blit(self.ply1.surf, self.ply1.rect)
             self.display_surface.blit(self.ply2.surf, self.ply2.rect)
             self.display_surface.blit(self.ball.surf, self.ball.rect)
             self.display_surface.blit(fps_text, fps_text_rect)
+            self.display_surface.blit(score_text, score_text_rect)
 
             pygame.display.update()
             self.delta_time = self.clock.tick(0)
