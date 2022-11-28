@@ -1,4 +1,5 @@
 import sys
+import math
 from collections.abc import Sequence
 
 import pygame
@@ -10,40 +11,85 @@ HEIGHT = 512
 
 class Entity(pygame.sprite.Sprite):
 
-    def __init__(self):
+    def __init__(self, rect: Rect):
         super().__init__()
-        self.surf = pygame.Surface((20, 120))
-        self.rect = self.surf.get_rect()
-        self.surf.fill((0, 0, 0))
+        self.rect = rect
 
     def get_width(self) -> int:
-        return self.surf.get_width()
+        return self.rect.width
 
     def get_height(self) -> int:
-        return self.surf.get_height()
+        return self.rect.height
+
+    def get_x(self) -> int:
+        return self.rect.x
+
+    def get_y(self) -> int:
+        return self.rect.y
 
 
 class Ball(Entity):
-
-    direction: bool = False
+    direction = -90
+    speed = 0.2
 
     def __init__(self, screen_width: int, screen_height: int):
-        super().__init__()
-        self.speed = 0.5
+
+        self.surf = pygame.Surface((32, 32), pygame.SRCALPHA)
+        super().__init__(self.surf.get_rect())
+
         self.screen_width = screen_width
         self.screen_height = screen_height
-        self.rect.topleft = (screen_width / 2, screen_height / 2)
+        self.rect.topleft = (
+            screen_width / 2 - self.surf.get_width() / 2,
+            screen_height / 2 - self.surf.get_height() / 2
+        )
 
-    def handle_movement(self, delta_time):
+        self.location = float(self.rect.top), float(self.rect.left)
+        self.image = pygame.image.load("ball.png").convert_alpha()
+        self.image = pygame.transform.smoothscale(self.image, self.rect.size)
+        self.surf.blit(self.image, (0, 0))
 
-        if not self.direction:
-            self.rect.left -= self.speed * delta_time
+    def handle_movement(self, delta_time, collision_group: list[Entity]):
+
+        collision = self.check_collision(collision_group)
+        if collision:
+            return
+
+        directionRadian = math.radians(self.direction)
+        self.location = (
+            self.location[0] + math.sin(directionRadian) * self.speed * delta_time,
+            self.location[1] + math.cos(directionRadian) * self.speed * delta_time
+        )
+
+        self.rect.topleft = (
+            int(self.location[0]),
+            int(self.location[1])
+        )
+
+    def check_collision(self, collision_group: list[Entity]) -> Entity | None:
+
+        for sprite in collision_group:
+
+            if (
+                sprite.get_x() < self.get_x() + self.get_width() and
+                sprite.get_x() + sprite.get_width() > self.get_x() and
+                sprite.get_y() < self.get_y() + self.get_height() and
+                sprite.get_y() + sprite.get_height() > self.get_y()
+            ):
+                return sprite
+
+        return None
 
 
 class Player(Entity):
 
     def __init__(self, controller: dict):
-        super().__init__()
+
+        self.surf = pygame.Surface((20, 120))
+        self.surf.fill((0, 0, 0))
+
+        super().__init__(self.surf.get_rect())
+
         self.controller: dict = controller
         self.speed: float = 0.5
         self.axis: float = 0.0
@@ -94,6 +140,7 @@ class Game:
         }
         self.ply2 = Player(ply2_controller)
         self.ply2.rect.topleft = (self.screen_width() - self.ply2.get_width() - 10, 50)
+        self.ball = Ball(self.screen_width(), self.screen_height())
 
         self.__loop()
 
@@ -142,10 +189,12 @@ class Game:
 
             self.ply1.handle_movement(keys, delta_time, height)
             self.ply2.handle_movement(keys, delta_time, height)
+            self.ball.handle_movement(delta_time, (self.ply1, self.ply2))
 
             self.display_surface.blit(self.header, self.header.get_rect())
             self.display_surface.blit(self.ply1.surf, self.ply1.rect)
             self.display_surface.blit(self.ply2.surf, self.ply2.rect)
+            self.display_surface.blit(self.ball.surf, self.ball.rect)
             self.display_surface.blit(fps_text, fps_text_rect)
 
             pygame.display.update()
