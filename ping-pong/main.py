@@ -29,7 +29,7 @@ class Entity(pygame.sprite.Sprite):
 
 
 class Ball(Entity):
-    direction = 180
+    direction = 90
     speed = 0.2
     collision_cooldown = 0
     border_cooldown = 0
@@ -61,10 +61,12 @@ class Ball(Entity):
 
         # Top and bottom borders
         if self.location[1] < 50 and self.border_cooldown < ticks:
-            self.direction *= -1
+            print(f"direction: {self.direction}")
+            self.direction = (360 - self.direction + 180) % 360
             self.border_cooldown = ticks + 150
+            print(f"hello {self.direction}")
         elif self.location[1] + self.get_height() > self.screen_height and self.border_cooldown < ticks:
-            self.direction *= -1
+            self.direction = (360 - self.direction + 180) % 360
             self.border_cooldown = ticks + 150
 
         # Player collisions
@@ -107,6 +109,9 @@ class Ball(Entity):
 
 class Player(Entity):
 
+    amIGoingToUp = False
+    amIMoving = False
+
     def __init__(self, controller: dict):
         self.surf = pygame.Surface((20, 120))
         super().__init__(self.surf.get_rect())
@@ -122,11 +127,17 @@ class Player(Entity):
 
     def handle_movement(self, keys: Sequence[bool], delta_time: int, screen_height: int):
 
-        if keys[self.controller["up"]]:
+        self.amIMoving = False
+        if keys[self.controller["up"]] and keys[self.controller["down"]]:
+            pass
+        elif keys[self.controller["up"]]:
             self.axis -= self.speed * delta_time
-
-        if keys[self.controller["down"]]:
+            self.amIGoingToUp = True
+            self.amIMoving = True
+        elif keys[self.controller["down"]]:
             self.axis += self.speed * delta_time
+            self.amIGoingToUp = False
+            self.amIMoving = True
 
         if self.axis < 0:
             self.axis = 0
