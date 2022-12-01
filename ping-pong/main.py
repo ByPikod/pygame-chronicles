@@ -1,5 +1,7 @@
+import datetime
 import sys
 import math
+import random
 from collections.abc import Sequence
 
 import pygame
@@ -29,6 +31,44 @@ class Entity(pygame.sprite.Sprite):
         return self.rect.y
 
 
+# Controllable entity player
+class Player(Entity):
+
+    movingState = 0
+
+    def __init__(self, controller: dict):
+
+        self.surf = pygame.Surface((20, 120))
+        super().__init__(self.surf.get_rect())
+
+        self.image = pygame.image.load("side.png").convert_alpha()
+        self.image = pygame.transform.smoothscale(self.image, self.rect.size)
+        self.surf.blit(self.image, (0, 0))
+
+        self.controller: dict = controller
+        self.score: int = 0
+        self.speed: float = 0.5
+        self.axis: float = 0.0
+
+    def handle_movement(self, keys: Sequence[bool], delta_time: int, screen_height: int):
+
+        self.movingState = 0
+        if keys[self.controller["up"]] and keys[self.controller["down"]]:
+            pass
+        elif keys[self.controller["up"]]:
+            self.axis -= self.speed * delta_time
+            self.movingState = 1
+        elif keys[self.controller["down"]]:
+            self.axis += self.speed * delta_time
+            self.movingState = -1
+
+        if self.axis < 0:
+            self.axis = 0
+        elif self.get_height() + self.axis + 10 > screen_height - 50:
+            self.axis = screen_height - self.get_height() - 10 - 50
+        self.rect.top = 50 + self.axis
+
+
 # Ball entity which bounces when collided with players and borders.
 class Ball(Entity):
 
@@ -54,8 +94,14 @@ class Ball(Entity):
         self.image = pygame.transform.smoothscale(self.image, self.rect.size)
         self.surf.blit(self.image, (0, 0))
 
+    def vertical_bounce(self):
+        self.direction = (360 - self.direction + 180) % 360
+
+    def horizontal_bounce(self):
+        self.direction = 360 - self.direction
+
     # Handle the ball movement and collides.
-    def handle_movement(self, delta_time, ticks, collision_group: tuple[Entity]):
+    def handle_movement(self, delta_time, ticks, collision_group: tuple[Player, Player]):
 
         # Score counter
         if self.location[0] < 0:
@@ -65,21 +111,23 @@ class Ball(Entity):
 
         # Top and bottom borders
         if self.location[1] < 50 and self.border_cooldown < ticks:
-            self.direction = (360 - self.direction + 180) % 360
+            self.vertical_bounce()
             self.border_cooldown = ticks + 150
+
         elif self.location[1] + self.get_height() > self.screen_height and self.border_cooldown < ticks:
-            self.direction = (360 - self.direction + 180) % 360
+            self.vertical_bounce()
             self.border_cooldown = ticks + 150
 
         # Player collisions
-        collision = self.check_collision(collision_group)
+        collision = self.check_collision(list(collision_group))
         if collision and self.collision_cooldown < ticks:
+
             self.speed += 0.05
             self.collision_cooldown = ticks + 400
-            rotateBall = (collision.get_y() - self.get_y()) / 2
-            if self.get_y() > self.screen_width / 2:
-                rotateBall *= -1
-            self.direction = (self.direction + rotateBall) * -1
+            self.horizontal_bounce()
+            directionSubtracted = self.direction - 180
+            self.direction += (directionSubtracted / abs(directionSubtracted) * 10) * collision.movingState
+
             return
 
         # Movement
@@ -95,7 +143,7 @@ class Ball(Entity):
         )
 
     # Player collision check return player if collides
-    def check_collision(self, collision_group: list[Entity]) -> Entity | None:
+    def check_collision(self, collision_group: list[Player]) -> Player | None:
 
         for sprite in collision_group:
 
@@ -110,53 +158,12 @@ class Ball(Entity):
         return None
 
 
-# Player as controllable entities.
-class Player(Entity):
-
-    amIGoingToUp = False
-    amIMoving = False
-
-    # It takes a dictionary with two keys "up" and "down" which points the keyboard keys.
-    def __init__(self, controller: dict):
-        self.surf = pygame.Surface((20, 120))
-        super().__init__(self.surf.get_rect())
-
-        self.image = pygame.image.load("side.png").convert_alpha()
-        self.image = pygame.transform.smoothscale(self.image, self.rect.size)
-        self.surf.blit(self.image, (0, 0))
-
-        self.controller: dict = controller
-        self.score: int = 0
-        self.speed: float = 0.8
-        self.axis: float = 0.0
-
-    # Listen the keyboard events and handle movement according to keys.
-    def handle_movement(self, keys: Sequence[bool], delta_time: int, screen_height: int):
-
-        self.amIMoving = False
-        if keys[self.controller["up"]] and keys[self.controller["down"]]:
-            pass
-        elif keys[self.controller["up"]]:
-            self.axis -= self.speed * delta_time
-            self.amIGoingToUp = True
-            self.amIMoving = True
-        elif keys[self.controller["down"]]:
-            self.axis += self.speed * delta_time
-            self.amIGoingToUp = False
-            self.amIMoving = True
-
-        if self.axis < 0:
-            self.axis = 0
-        if self.get_height() + self.axis + 10 > screen_height - 50:
-            self.axis = screen_height - self.get_height() - 10 - 50
-        self.rect.top = 50 + self.axis
-
-
 # Game class to initialize the game.
 class Game:
 
     def __init__(self, width, height):
 
+        random.seed(datetime.datetime.now().second)
         pygame.init()
         pygame.display.set_caption("Ping Pong")
 
@@ -182,6 +189,7 @@ class Game:
             "up": K_UP,
             "down": K_DOWN
         }
+
         self.ply2 = Player(ply2_controller)
         self.ply2.rect.topleft = (self.screen_width() - self.ply2.get_width() - 10, 50)
         self.ball = Ball(self.screen_width(), self.screen_height())
