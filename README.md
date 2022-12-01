@@ -7,5 +7,5 @@
     I share the games I made using <a href="https://github.com/pygame/pygame">Pygame</a> in this repository!
 </p>
 <ul>
-    <li><a href="ping-pong/README.MD">Ping Pong</a></li>
+    <li><a href="ping-pong">Ping Pong</a></li>
 </ul>
