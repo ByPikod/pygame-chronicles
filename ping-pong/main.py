@@ -9,6 +9,7 @@ WIDTH = 512
 HEIGHT = 512
 
 
+# Ball and Player derived from this
 class Entity(pygame.sprite.Sprite):
 
     def __init__(self, rect: Rect):
@@ -28,7 +29,9 @@ class Entity(pygame.sprite.Sprite):
         return self.rect.y
 
 
+# Ball entity which bounces when collided with players and borders.
 class Ball(Entity):
+
     direction = 90
     speed = 0.2
     collision_cooldown = 0
@@ -51,7 +54,8 @@ class Ball(Entity):
         self.image = pygame.transform.smoothscale(self.image, self.rect.size)
         self.surf.blit(self.image, (0, 0))
 
-    def handle_movement(self, delta_time, ticks, collision_group: list[Entity]):
+    # Handle the ball movement and collides.
+    def handle_movement(self, delta_time, ticks, collision_group: tuple[Entity]):
 
         # Score counter
         if self.location[0] < 0:
@@ -61,10 +65,8 @@ class Ball(Entity):
 
         # Top and bottom borders
         if self.location[1] < 50 and self.border_cooldown < ticks:
-            print(f"direction: {self.direction}")
             self.direction = (360 - self.direction + 180) % 360
             self.border_cooldown = ticks + 150
-            print(f"hello {self.direction}")
         elif self.location[1] + self.get_height() > self.screen_height and self.border_cooldown < ticks:
             self.direction = (360 - self.direction + 180) % 360
             self.border_cooldown = ticks + 150
@@ -72,8 +74,8 @@ class Ball(Entity):
         # Player collisions
         collision = self.check_collision(collision_group)
         if collision and self.collision_cooldown < ticks:
-            self.speed += 0.01
-            self.collision_cooldown = ticks + 300
+            self.speed += 0.05
+            self.collision_cooldown = ticks + 400
             rotateBall = (collision.get_y() - self.get_y()) / 2
             if self.get_y() > self.screen_width / 2:
                 rotateBall *= -1
@@ -92,6 +94,7 @@ class Ball(Entity):
             int(self.location[1])
         )
 
+    # Player collision check return player if collides
     def check_collision(self, collision_group: list[Entity]) -> Entity | None:
 
         for sprite in collision_group:
@@ -107,11 +110,13 @@ class Ball(Entity):
         return None
 
 
+# Player as controllable entities.
 class Player(Entity):
 
     amIGoingToUp = False
     amIMoving = False
 
+    # It takes a dictionary with two keys "up" and "down" which points the keyboard keys.
     def __init__(self, controller: dict):
         self.surf = pygame.Surface((20, 120))
         super().__init__(self.surf.get_rect())
@@ -122,9 +127,10 @@ class Player(Entity):
 
         self.controller: dict = controller
         self.score: int = 0
-        self.speed: float = 0.5
+        self.speed: float = 0.8
         self.axis: float = 0.0
 
+    # Listen the keyboard events and handle movement according to keys.
     def handle_movement(self, keys: Sequence[bool], delta_time: int, screen_height: int):
 
         self.amIMoving = False
@@ -146,6 +152,7 @@ class Player(Entity):
         self.rect.top = 50 + self.axis
 
 
+# Game class to initialize the game.
 class Game:
 
     def __init__(self, width, height):
@@ -181,9 +188,12 @@ class Game:
 
         self.__loop()
 
+    # Returns how many ticks has it been since the game was opened.
     def get_ticks(self) -> int:
         return pygame.time.get_ticks() - self.startTicks
 
+    # Sets the fps field to tuple that stores actual fps and when was the last time fps calculated.
+    # When the last time fps calculated is required to update fps in screen periodically.
     def calculate_fps(self):
 
         fps, lastFpsTime = self.fps
@@ -194,15 +204,23 @@ class Game:
             lastFpsTime = ticks
             self.fps = (int(fps), lastFpsTime)
 
+    # Returns screen width
     def screen_width(self) -> int:
         return self.display_surface.get_width()
 
+    # Returns screen height
     def screen_height(self) -> int:
         return self.display_surface.get_height()
 
+    # Returns the delta time which how many ticks it has been since moved to next frame.
+    # Since I don't use a fixed fps it is always changing the pixels moved per second.
+    # And since we want move speed and that kind of stuff dependent to second (pixel/time) instead of
+    # frame per second (pixel/fps) we must multiply this in all the physic related updates.
+    # If we do otherwise the game will run very fast on powerful computers and very slow on weak computers.
     def get_delta_time(self) -> int:
         return self.delta_time
 
+    # Main game loop
     def __loop(self):
 
         while True:
@@ -212,6 +230,7 @@ class Game:
                     pygame.quit()
                     return 0
 
+            # Fill the screen with white color.
             self.display_surface.fill((255, 255, 255))
             self.calculate_fps()
 
@@ -221,10 +240,14 @@ class Game:
 
             score_text = self.mainFont.render(f"Score: {self.ply1.score} - {self.ply2.score}", True, (255, 255, 255))
             score_text_rect = score_text.get_rect()
-            score_text_rect.topleft = (self.screen_width() - 120, 10)
+            score_text_rect.topright = (self.screen_width() - 10, 10)
+
+            title_text = self.mainFont.render(f"Made by Picode", True, (255, 255, 255))
+            title_text_rect = title_text.get_rect()
+            title_text_rect.centerx = self.screen_width() / 2
+            title_text_rect.top = 10
 
             keys = pygame.key.get_pressed()
-
             height = self.screen_height()
             delta_time = self.get_delta_time()
             ticks = self.get_ticks()
@@ -247,6 +270,7 @@ class Game:
             self.display_surface.blit(self.ball.surf, self.ball.rect)
             self.display_surface.blit(fps_text, fps_text_rect)
             self.display_surface.blit(score_text, score_text_rect)
+            self.display_surface.blit(title_text, title_text_rect)
 
             pygame.display.update()
             self.delta_time = self.clock.tick(0)
